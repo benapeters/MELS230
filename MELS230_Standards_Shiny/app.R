@@ -2,6 +2,76 @@ library(shiny)
 library(ggplot2)
 library(rhandsontable)
 
+# Define custom theme for all plots
+custom_theme <- theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "white", color = "gray80"),
+    panel.grid.major = element_line(color = "gray90", size = 0.2),
+    panel.grid.minor = element_line(color = "gray95", size = 0.1),
+    axis.line = element_line(color = "black", size = 0.5),
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 12, face = "bold"),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    legend.position = "bottom"
+  )
+
+# Define common plotting parameters
+plot_params <- list(
+  point_size = 3,
+  point_color = "#0D98BA",
+  regression_color = "#0D98BA",
+  regression_size = 1.5,
+  reference_color = "#BA2F0D",
+  reference_size = 1.5,
+  highlight_color = "#BA2F0D",
+  highlight_size = 4
+)
+
+# Function to create standardized plot
+create_determination_plot <- function(plot_data, filtered_data, regression_model, 
+                                      absorbance_input, title) {
+  p <- ggplot(plot_data, aes(x = Amount, y = Absorbance)) +
+    geom_point(color = plot_params$point_color, 
+               size = plot_params$point_size) +
+    labs(title = title,
+         x = "Amount", 
+         y = "Absorbance") +
+    custom_theme
+  
+  if(!is.null(regression_model)) {
+    p <- p + geom_smooth(data = filtered_data,
+                         method = "lm",
+                         formula = y ~ 0 + x,
+                         se = FALSE,
+                         color = plot_params$regression_color,
+                         size = plot_params$regression_size,
+                         linetype = "dashed")
+    
+    if(!is.na(absorbance_input)) {
+      amount <- absorbance_input / coef(regression_model)[1]
+      p <- p + 
+        geom_point(data = data.frame(Amount = amount,
+                                     Absorbance = absorbance_input),
+                   color = plot_params$highlight_color,
+                   size = plot_params$highlight_size,
+                   shape = 17) +
+        annotate("segment", 
+                 x = 0, xend = amount,
+                 y = absorbance_input, yend = absorbance_input,
+                 linetype = "dotted", 
+                 color = plot_params$reference_color,
+                 size = plot_params$reference_size) +
+        annotate("segment",
+                 x = amount, xend = amount,
+                 y = 0, yend = absorbance_input,
+                 linetype = "dotted", 
+                 color = plot_params$reference_color,
+                 size = plot_params$reference_size)
+    }
+  }
+  return(p)
+}
+
 # Define UI for application 
 ui <- fluidPage(
   # Application title
@@ -203,96 +273,49 @@ server <- function(input, output, session) {
     })
   })
   
-  # Create plots
+
+  
+  # Update plot outputs to use the new function
   output$dotPlot1 <- renderPlot({
     plot_data <- data_list$urea()[!is.na(data_list$urea()$Amount) & 
                                     !is.na(data_list$urea()$Absorbance),]
     
-    p <- ggplot(plot_data, aes(x = Amount, y = Absorbance)) +
-      geom_point(color = "blue", size = 3) +
-      labs(title = "Urea Determination",
-           x = "Amount", 
-           y = "Absorbance")
-    
-    if(!is.null(regression_models$urea())) {
-      p <- p + geom_smooth(data = filtered_data$urea(),
-                           method = "lm",
-                           formula = y ~ 0 + x,
-                           se = FALSE,
-                           color = "red",
-                           linetype = "dashed")
-      
-      if(!is.na(input$absorbance_input1)) {
-        amount <- input$absorbance_input1 / coef(regression_models$urea())[1]
-        p <- p + geom_point(data = data.frame(Amount = amount,
-                                              Absorbance = input$absorbance_input1),
-                            color = "green",
-                            size = 5,
-                            shape = 17)
-      }
-    }
-    p
+    create_determination_plot(
+      plot_data = plot_data,
+      filtered_data = filtered_data$urea(),
+      regression_model = regression_models$urea(),
+      absorbance_input = input$absorbance_input1,
+      title = "Urea Determination"
+    )
   })
   
   output$dotPlot2 <- renderPlot({
     plot_data <- data_list$uric_acid()[!is.na(data_list$uric_acid()$Amount) & 
                                          !is.na(data_list$uric_acid()$Absorbance),]
     
-    p <- ggplot(plot_data, aes(x = Amount, y = Absorbance)) +
-      geom_point(color = "blue", size = 3) +
-      labs(title = "Uric Acid Determination",
-           x = "Amount", 
-           y = "Absorbance")
-    
-    if(!is.null(regression_models$uric_acid())) {
-      p <- p + geom_smooth(data = filtered_data$uric_acid(),
-                           method = "lm",
-                           formula = y ~ 0 + x,
-                           se = FALSE,
-                           color = "red",
-                           linetype = "dashed")
-      
-      if(!is.na(input$absorbance_input2)) {
-        amount <- input$absorbance_input2 / coef(regression_models$uric_acid())[1]
-        p <- p + geom_point(data = data.frame(Amount = amount,
-                                              Absorbance = input$absorbance_input2),
-                            color = "green",
-                            size = 5,
-                            shape = 17)
-      }
-    }
-    p
+    create_determination_plot(
+      plot_data = plot_data,
+      filtered_data = filtered_data$uric_acid(),
+      regression_model = regression_models$uric_acid(),
+      absorbance_input = input$absorbance_input2,
+      title = "Uric Acid Determination"
+    )
   })
   
   output$dotPlot3 <- renderPlot({
     plot_data <- data_list$creatinine()[!is.na(data_list$creatinine()$Amount) & 
                                           !is.na(data_list$creatinine()$Absorbance),]
     
-    p <- ggplot(plot_data, aes(x = Amount, y = Absorbance)) +
-      geom_point(color = "blue", size = 3) +
-      labs(title = "Creatinine Determination",
-           x = "Amount", 
-           y = "Absorbance")
-    
-    if(!is.null(regression_models$creatinine())) {
-      p <- p + geom_smooth(data = filtered_data$creatinine(),
-                           method = "lm",
-                           formula = y ~ 0 + x,
-                           se = FALSE,
-                           color = "red",
-                           linetype = "dashed")
-      
-      if(!is.na(input$absorbance_input3)) {
-        amount <- input$absorbance_input3 / coef(regression_models$creatinine())[1]
-        p <- p + geom_point(data = data.frame(Amount = amount,
-                                              Absorbance = input$absorbance_input3),
-                            color = "green",
-                            size = 5,
-                            shape = 17)
-      }
-    }
-    p
+    create_determination_plot(
+      plot_data = plot_data,
+      filtered_data = filtered_data$creatinine(),
+      regression_model = regression_models$creatinine(),
+      absorbance_input = input$absorbance_input3,
+      title = "Creatinine Determination"
+    )
   })
+  
+  
 }
 
 # Run the application 
